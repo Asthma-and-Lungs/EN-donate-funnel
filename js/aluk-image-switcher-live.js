@@ -5,10 +5,10 @@
 (function() {
     const csvUrl = 'https://raw.githubusercontent.com/Asthma-and-Lungs/EN-donate-funnel/refs/heads/main/data/en_image_list_live.csv';
     const urlParams = new URLSearchParams(window.location.search);
-    const campaignId = urlParams.get('campaign_id');
+    const utmId = urlParams.get('utm_campaign');
 
-    // If there's no campaign_id, let the template default show naturally
-    if (!campaignId) return;
+    // If there's no utm_id, let the template default show naturally
+    if (!utmId) return;
 
     // Wait for the DOM to be fully ready before looking for elements
     if (document.readyState === 'loading') {
@@ -21,11 +21,11 @@
         fetch(csvUrl)
             .then(response => response.text())
             .then(csvText => {
-                const imageUrl = getImageUrlFromCSV(csvText, campaignId);
+                const imageUrl = getImageUrlFromCSV(csvText, utmId);
                 if (imageUrl) {
                     executeFastTransition(imageUrl);
                 } else {
-                    console.log('Campaign ID match not found in CSV:', campaignId);
+                    console.log('utm ID match not found in CSV:', utmId);
                     restoreDefaultBackground(); // Fallback if ID doesn't exist in CSV
                 }
             })
@@ -64,7 +64,7 @@
         }
 
         const cloneBg = document.createElement('div');
-        cloneBg.className = 'campaign-bg-overlay';
+        cloneBg.className = 'utm-bg-overlay';
         
         cloneBg.style.cssText = `
             position: fixed !important;
@@ -87,7 +87,7 @@
 
         document.body.appendChild(cloneBg);
 
-        // Preload the campaign image entirely before showing it
+        // Preload the utm image entirely before showing it
         const img = new Image();
         img.src = newImageUrl;
         img.onload = function() {
