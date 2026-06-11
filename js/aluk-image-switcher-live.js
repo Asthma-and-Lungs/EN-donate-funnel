@@ -1,14 +1,35 @@
 /**
  * ALUK Dynamic Background Switcher (Zero-Lag Hide/Show)
+ * Updated to support both Page_UTM and Page-only fallbacks
  * Hosted on GitHub
  */
 (function() {
     const csvUrl = 'https://raw.githubusercontent.com/Asthma-and-Lungs/EN-donate-funnel/refs/heads/main/data/en_image_list_live.csv';
+    
+    // 1. Extract UTM Campaign
     const urlParams = new URLSearchParams(window.location.search);
-    const utmId = urlParams.get('utm_campaign');
+    const utmCampaign = urlParams.get('utm_campaign');
 
-    // If there's no utm_id, let the template default show naturally
-    if (!utmId) return;
+    // 2. Extract Page Number from URL path (e.g., /page/190488/donate/1)
+    const pathSegments = window.location.pathname.split('/');
+    const pageIndex = pathSegments.indexOf('page');
+    const pageNumber = (pageIndex !== -1 && pathSegments[pageIndex + 1]) ? pathSegments[pageIndex + 1] : null;
+
+    // Determine the primary lookup key and alternative fallback key
+    let primaryKey = null;
+    let fallbackKey = null;
+
+    if (pageNumber && utmCampaign) {
+        // If both exist, look for the combined version first, and the page number second
+        primaryKey = `${pageNumber}_${utmCampaign}`;
+        fallbackKey = pageNumber;
+    } else if (pageNumber) {
+        // If no UTM parameter exists, just look for the page number
+        primaryKey = pageNumber;
+    }
+
+    // If we don't even have a page number, let the template default show naturally
+    if (!primaryKey) return;
 
     // Wait for the DOM to be fully ready before looking for elements
     if (document.readyState === 'loading') {
@@ -21,17 +42,25 @@
         fetch(csvUrl)
             .then(response => response.text())
             .then(csvText => {
-                const imageUrl = getImageUrlFromCSV(csvText, utmId);
+                // Try searching with the primary key first (e.g., "179409_summer26" or "190488")
+                let imageUrl = getImageUrlFromCSV(csvText, primaryKey);
+                
+                // If not found and we have a fallback key (page number), try that next
+                if (!imageUrl && fallbackKey) {
+                    console.log(`Primary key [${primaryKey}] not found. Trying fallback [${fallbackKey}]...`);
+                    imageUrl = getImageUrlFromCSV(csvText, fallbackKey);
+                }
+
                 if (imageUrl) {
                     executeFastTransition(imageUrl);
                 } else {
-                    console.log('utm ID match not found in CSV:', utmId);
-                    restoreDefaultBackground(); // Fallback if ID doesn't exist in CSV
+                    console.log('No background match found in CSV for keys:', primaryKey, fallbackKey || '');
+                    restoreDefaultBackground(); // Fallback if no keys exist in CSV
                 }
             })
             .catch(err => {
                 console.error('Background Switcher Fetch Error:', err);
-                restoreDefaultBackground(); // Fallback if Shopify/Network fails
+                restoreDefaultBackground(); // Fallback if Network fails
             });
     }
 
