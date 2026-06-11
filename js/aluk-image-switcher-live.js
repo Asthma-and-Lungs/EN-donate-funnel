@@ -3,7 +3,7 @@
  * Hosted on GitHub
  */
 (function() {
-    const csvUrl = 'https://raw.githubusercontent.com/jssemakula/jks_assets/refs/heads/main/en_image_list.csv';
+    const csvUrl = 'https://raw.githubusercontent.com/Asthma-and-Lungs/EN-donate-funnel/refs/heads/main/data/en_image_list_live.csv';
     const urlParams = new URLSearchParams(window.location.search);
     const campaignId = urlParams.get('campaign_id');
 
