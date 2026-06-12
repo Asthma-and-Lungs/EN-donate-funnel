@@ -1,6 +1,6 @@
 /**
  * ALUK Dynamic Background Switcher (Zero-Lag Hide/Show)
- * Updated to support both Page_UTM and Page-only fallbacks
+ * Updated to instantly hide default background to prevent flashes during loading
  * Hosted on GitHub
  */
 (function() {
@@ -10,28 +10,35 @@
     const urlParams = new URLSearchParams(window.location.search);
     const utmCampaign = urlParams.get('utm_campaign');
 
-    // 2. Extract Page Number from URL path (e.g., /page/190488/donate/1)
+    // 2. Extract Page Number from URL path
     const pathSegments = window.location.pathname.split('/');
     const pageIndex = pathSegments.indexOf('page');
     const pageNumber = (pageIndex !== -1 && pathSegments[pageIndex + 1]) ? pathSegments[pageIndex + 1] : null;
 
-    // Determine the primary lookup key and alternative fallback key
+    // Determine the keys
     let primaryKey = null;
     let fallbackKey = null;
 
     if (pageNumber && utmCampaign) {
-        // If both exist, look for the combined version first, and the page number second
         primaryKey = `${pageNumber}_${utmCampaign}`;
         fallbackKey = pageNumber;
     } else if (pageNumber) {
-        // If no UTM parameter exists, just look for the page number
         primaryKey = pageNumber;
     }
 
-    // If we don't even have a page number, let the template default show naturally
+    // If we don't have a valid key, let the template behave normally
     if (!primaryKey) return;
 
-    // Wait for the DOM to be fully ready before looking for elements
+    /**
+     * CRITICAL ADDITION: Instantly hide the default background via injected CSS 
+     * before the DOM even finishes fully rendering to prevent layout flashing.
+     */
+    const hideStyle = document.createElement('style');
+    hideStyle.id = 'aluk-bg-hide-lock';
+    hideStyle.innerHTML = `.background-image { opacity: 0 !important; }`;
+    document.head.appendChild(hideStyle);
+
+    // Wait for the DOM to be ready before creating elements
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
@@ -42,10 +49,8 @@
         fetch(csvUrl)
             .then(response => response.text())
             .then(csvText => {
-                // Try searching with the primary key first (e.g., "179409_summer26" or "190488")
                 let imageUrl = getImageUrlFromCSV(csvText, primaryKey);
                 
-                // If not found and we have a fallback key (page number), try that next
                 if (!imageUrl && fallbackKey) {
                     console.log(`Primary key [${primaryKey}] not found. Trying fallback [${fallbackKey}]...`);
                     imageUrl = getImageUrlFromCSV(csvText, fallbackKey);
@@ -54,13 +59,13 @@
                 if (imageUrl) {
                     executeFastTransition(imageUrl);
                 } else {
-                    console.log('No background match found in CSV for keys:', primaryKey, fallbackKey || '');
-                    restoreDefaultBackground(); // Fallback if no keys exist in CSV
+                    console.log('No background match found in CSV:', primaryKey);
+                    restoreDefaultBackground(); 
                 }
             })
             .catch(err => {
                 console.error('Background Switcher Fetch Error:', err);
-                restoreDefaultBackground(); // Fallback if Network fails
+                restoreDefaultBackground(); 
             });
     }
 
@@ -89,6 +94,7 @@
         
         if (!originalBg) {
             applyToBodyFallback(newImageUrl);
+            removeHideLock();
             return;
         }
 
@@ -107,7 +113,7 @@
             background-repeat: no-repeat !important;
             pointer-events: none !important;
             opacity: 0 !important;
-            transition: opacity 0.2s ease-out !important;
+            transition: opacity 0.4s ease-out !important;
         `;
 
         const originalZ = window.getComputedStyle(originalBg).zIndex;
@@ -116,27 +122,37 @@
 
         document.body.appendChild(cloneBg);
 
-        // Preload the utm image entirely before showing it
+        // Preload the asset over the network entirely before rendering 
         const img = new Image();
         img.src = newImageUrl;
         img.onload = function() {
             requestAnimationFrame(() => {
                 cloneBg.style.setProperty('opacity', '1', 'important');
+                // Keep the default background hidden permanently since our new one is live
             });
         };
     }
 
     /**
-     * Safely brings back the default template background if no match was found
+     * Safely cleans up the loading block and fades back the original template asset
      */
     function restoreDefaultBackground() {
+        removeHideLock();
         const originalBg = document.querySelector('.background-image');
         if (originalBg) {
-            originalBg.style.setProperty('transition', 'opacity 0.2s ease-out', 'important'); 
+            originalBg.style.setProperty('transition', 'opacity 0.4s ease-out', 'important'); 
             requestAnimationFrame(() => {
                 originalBg.style.setProperty('opacity', '1', 'important');
             });
         }
+    }
+
+    /**
+     * Removes the hard visibility override style block
+     */
+    function removeHideLock() {
+        const lock = document.getElementById('aluk-bg-hide-lock');
+        if (lock) lock.remove();
     }
 
     function applyToBodyFallback(url) {
